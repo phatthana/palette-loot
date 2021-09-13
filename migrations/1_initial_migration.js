@@ -1,5 +1,5 @@
-const Loot = artifacts.require('Loot');
+const CoLoot = artifacts.require('CoLoot');
 
 module.exports = async function (deployer) {
-  await deployer.deploy(Loot);
+  await deployer.deploy(CoLoot);
 };

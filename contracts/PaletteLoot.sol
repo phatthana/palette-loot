@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at Etherscan.io on 2021-08-27
-*/
-
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
@@ -26,8 +22,6 @@ interface IERC165 {
      */
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
-
-
 
 
 
@@ -202,36 +196,27 @@ library Strings {
         }
         return string(buffer);
     }
+}
 
+
+
+
+/**
+ * @dev Standard math utilities missing in the Solidity language.
+ */
+library Math {
     /**
-     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation.
+     * @dev Returns the largest of two numbers.
      */
-    function toHexString(uint256 value) internal pure returns (string memory) {
-        if (value == 0) {
-            return "0x00";
-        }
-        uint256 temp = value;
-        uint256 length = 0;
-        while (temp != 0) {
-            length++;
-            temp >>= 8;
-        }
-        return toHexString(value, length);
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a >= b ? a : b;
     }
 
     /**
-     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation with fixed length.
+     * @dev Returns the smallest of two numbers.
      */
-    function toHexString(uint256 value, uint256 length) internal pure returns (string memory) {
-        bytes memory buffer = new bytes(2 * length + 2);
-        buffer[0] = "0";
-        buffer[1] = "x";
-        for (uint256 i = 2 * length + 1; i > 1; --i) {
-            buffer[i] = _HEX_SYMBOLS[value & 0xf];
-            value >>= 4;
-        }
-        require(value == 0, "Strings: hex length insufficient");
-        return string(buffer);
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 }
 
@@ -257,11 +242,6 @@ abstract contract Context {
         return msg.data;
     }
 }
-
-
-
-
-
 
 
 
@@ -398,16 +378,6 @@ abstract contract ReentrancyGuard {
 
 
 
-
-
-
-
-
-
-
-
-
-
 /**
  * @title ERC721 token receiver interface
  * @dev Interface for any contract that wants to support safeTransfers
@@ -430,9 +400,6 @@ interface IERC721Receiver {
         bytes calldata data
     ) external returns (bytes4);
 }
-
-
-
 
 
 
@@ -668,11 +635,6 @@ library Address {
         }
     }
 }
-
-
-
-
-
 
 
 
@@ -1104,9 +1066,6 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
 
 
 
-
-
-
 /**
  * @title ERC-721 Non-Fungible Token Standard, optional enumeration extension
  * @dev See https://eips.ethereum.org/EIPS/eip-721
@@ -1129,6 +1088,8 @@ interface IERC721Enumerable is IERC721 {
      */
     function tokenByIndex(uint256 index) external view returns (uint256);
 }
+
+
 
 
 /**
@@ -1288,75 +1249,210 @@ abstract contract ERC721Enumerable is ERC721, IERC721Enumerable {
 }
 
 
-contract Loot is ERC721Enumerable, ReentrancyGuard, Ownable {
-    string[] private colorValue = [
-        '00',
-        '01',
-        'fe',
-        'ff'
-    ];
+contract CoLoot is ERC721Enumerable, ReentrancyGuard, Ownable {
     
+    mapping (uint256 => int256[5]) hScheme;
+    mapping (uint256 => int256[5]) sScheme;
+    mapping (uint256 => int256[5]) lScheme;
+
+    struct ColorHSL { 
+        uint256 hue;
+        uint256 saturation;
+        uint256 lightness;
+    }
+
+    struct ColorRGB {
+        uint256 red;
+        uint256 green;
+        uint256 blue;
+    }
     
     function random(string memory input) internal pure returns (uint256) {
         return uint256(keccak256(abi.encodePacked(input)));
     }
 
-    function getRed(uint256 tokenId) public view returns (string memory) {
-        return pluck(tokenId, "RED", colorValue);
+    function randomColorHSL(uint256 tokenId) internal pure returns (ColorHSL memory) {
+        return toColorHSL(randomColorRGB(tokenId));
     }
 
-    function getGreen(uint256 tokenId) public view returns (string memory) {
-        return pluck(tokenId, "GREEN", colorValue);
+    function randomColorRGB(uint256 tokenId) internal pure returns (ColorRGB memory) {
+        return ColorRGB(randomColor(tokenId, "RED"), randomColor(tokenId, "GREEN"), randomColor(tokenId, "BLUE"));
     }
 
-    function getBlue(uint256 tokenId) public view returns (string memory) {
-        return pluck(tokenId, "BLUE", colorValue);
+    function randomColor(uint256 tokenId, string memory keyPrefix) internal pure returns (uint256) {
+        return random(string(abi.encodePacked(keyPrefix, toString(tokenId)))) % 256;
     }
 
-    function getColor(uint256 tokenId) public view returns (string memory) {
-        return string(abi.encodePacked(getRed(tokenId), getGreen(tokenId), getBlue(tokenId)));
+    function randomColorPalette(uint256 tokenId) internal view returns (ColorHSL[5] memory colorPallete) {
+        ColorHSL memory firstColor = randomColorHSL(tokenId);
+        uint256 schemeIndex = random(string(abi.encodePacked("SCHEME", toString(tokenId)))) % 9;
+        ColorHSL[4] memory colors = getColorPalette(firstColor, schemeIndex);
+        return [colors[0], colors[1], firstColor, colors[2], colors[3]];
     }
-    
-    function pluck(uint256 tokenId, string memory keyPrefix, string[] memory sourceArray) internal view returns (string memory) {
-        uint256 rand = random(string(abi.encodePacked(keyPrefix, toString(tokenId))));
-        return sourceArray[rand % sourceArray.length];
+
+    function getFirstColor(uint256 tokenId) public view returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+        return toHexColor(toColorRGB(colors[0]));
+    }
+
+    function getSecondColor(uint256 tokenId) public view returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+        return toHexColor(toColorRGB(colors[1]));
+    }
+
+    function getThirdColor(uint256 tokenId) public view returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+        return toHexColor(toColorRGB(colors[2]));
+    }
+
+    function getFourthColor(uint256 tokenId) public view returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+        return toHexColor(toColorRGB(colors[3]));
+    }
+
+    function getFifthColor(uint256 tokenId) public view returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+        return toHexColor(toColorRGB(colors[4]));
     }
 
     function tokenURI(uint256 tokenId) override public view returns (string memory) {
-        
-        string[8] memory parts;
-        parts[0] = '<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMin meet" viewBox="0 0 350 350">';
-        parts[1] = '<rect width="100%" height="100%"/>';
-        parts[2] = string(abi.encodePacked('<rect x="0" y="0" height="20%" width="100%" fill="#', getColor(tokenId) ,'"/>'));
-        parts[3] = string(abi.encodePacked('<rect x="0" y="70" height="20%" width="100%" fill="#', getColor(tokenId) ,'"/>'));
-        parts[4] = string(abi.encodePacked('<rect x="0" y="140" height="20%" width="100%" fill="#', getColor(tokenId) ,'"/>'));
-        parts[5] = string(abi.encodePacked('<rect x="0" y="210" height="20%" width="100%" fill="#', getColor(tokenId) ,'"/>'));
-        parts[6] = string(abi.encodePacked('<rect x="0" y="280" height="20%" width="100%" fill="#', getColor(tokenId) ,'"/>'));
-        parts[7] = '</svg>';
-        // parts[3] = '<rect x="0" y="70" height="20%" width="100%" fill="#444444"/>';
-        // parts[4] = '<rect x="0" y="140" height="20%" width="100%" fill="#888888"/>';
-        // parts[5] = '<rect x="0" y="210" height="20%" width="100%" fill="#CCCCCC"/>';
-        // parts[6] = '<rect x="0" y="280" height="20%" width="100%" fill="#FFFFFF"/>';
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
-        string memory output = string(abi.encodePacked(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7]));
-        // output = string(abi.encodePacked(output, parts[9], parts[10], parts[11], parts[12], parts[13], parts[14], parts[15], parts[16]));
+        ColorHSL[5] memory colors = randomColorPalette(tokenId);
+
+        string[12] memory parts;
+        parts[0] = '<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMin meet" viewBox="0 0 350 350"><rect x="0" y="0" height="20%" width="100%" fill="';
+        parts[1] = hslToString(colors[0]);
+        parts[2] = '"/><rect x="0" y="70" height="20%" width="100%" fill="';
+        parts[3] = hslToString(colors[1]);
+        parts[4] = '"/><rect x="0" y="140" height="20%" width="100%" fill="';
+        parts[5] = hslToString(colors[2]);
+        parts[6] = '"/><rect x="0" y="210" height="20%" width="100%" fill="';
+        parts[7] = hslToString(colors[3]);
+        parts[8] = '"/><rect x="0" y="280" height="20%" width="100%" fill="';
+        parts[9] = hslToString(colors[4]);
+        parts[10] = '"/></svg>';
+
+        string memory output = string(abi.encodePacked(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]));
+        output = string(abi.encodePacked(output, parts[6], parts[7], parts[8], parts[9], parts[10]));
         
-        string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Bag #', toString(tokenId), '", "description": "Loot is randomized adventurer gear generated and stored on chain. Stats, images, and other functionality are intentionally omitted for others to interpret. Feel free to use Loot in any way you want.", "image": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
+        string memory json = Base64.encode(bytes(string(abi.encodePacked('{"name": "Palette #', toString(tokenId), '", "description": "Color Loot is randomized color palette generated and stored on chain. Feel free to use Color Loot in any way you want.", "image_data": "data:image/svg+xml;base64,', Base64.encode(bytes(output)), '"}'))));
         output = string(abi.encodePacked('data:application/json;base64,', json));
-
         return output;
     }
 
     function claim(uint256 tokenId) public nonReentrant {
-        require(tokenId > 0 && tokenId < 7778, "Token ID invalid");
+        require(tokenId > 9999 && tokenId < (block.number / 100) + 1, "Token ID invalid");
         _safeMint(_msgSender(), tokenId);
     }
-    
+
     function ownerClaim(uint256 tokenId) public nonReentrant onlyOwner {
-        require(tokenId > 7777 && tokenId < 8001, "Token ID invalid");
+        require(tokenId > 0 && tokenId <= 9999, "Token ID invalid");
         _safeMint(owner(), tokenId);
     }
+
+    function getColorPalette(ColorHSL memory color, uint256 schemeIndex) internal view returns (ColorHSL[4] memory) {
+        ColorHSL[4] memory colorPallete;
+        for (uint256 i=0; i<4; i++) {
+            
+            int256 h = int256(color.hue) + hScheme[schemeIndex][i];
+            int256 s = int256(color.saturation) + sScheme[schemeIndex][i];
+            int256 l = int256(color.lightness) + lScheme[schemeIndex][i];
+            h = h < 0? h + 360: h;
+            h = h > 360? h - 360: h;
+            s = s < 0? s + (-1 * sScheme[schemeIndex][i] * 2): s;
+            s = s > 100? s + (-1 * sScheme[schemeIndex][i] * 2) : s;
+            l = l < 0? l + (-1 * lScheme[schemeIndex][i] * 2) : l;
+            l = l > 100? l + (-1 * lScheme[schemeIndex][i] * 2) : l;
+            colorPallete[i] = ColorHSL(uint256(h), uint256(s), uint256(l));
+        }
+        return colorPallete;
+    }
+
+    function hslToString(ColorHSL memory colorHSL) internal pure returns (string memory) {
+        return string(abi.encodePacked('hsl(', toString(colorHSL.hue), ',', toString(colorHSL.saturation),'%,', toString(colorHSL.lightness),'%)'));
+    }
     
+    function toHexString(uint256 value) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(2);
+        str[0] = alphabet[value/16];
+        str[1] = alphabet[value%16];
+        return string(str);
+    }
+
+    function toHexColor(ColorRGB memory colorRGB) internal pure returns (string memory) {
+        return string(abi.encodePacked(toHexString(colorRGB.red), toHexString(colorRGB.green), toHexString(colorRGB.blue)));
+    }
+
+    function hue2rgb(int256 p, int256 q, int256 t) internal pure returns (uint256 v) {
+        if(t < 0) t = t + 10000;
+        if(t > 10000) t = t - 10000;
+        if(t < 1666) {
+            return uint256(p + (q - p) * 6 * t / 10000);
+        }
+        if(t < 5000) return uint256(q);
+        if(t < 6666) {
+            return uint256(p + 6 * ((q - p) * (6666 - t) / 10000) );
+        }
+        return uint256(p);
+    }
+
+    function toColorRGB(ColorHSL memory colorHSL) internal pure returns (ColorRGB memory) {
+        uint256 r;
+        uint256 g;
+        uint256 b;
+        int256 h = int256(colorHSL.hue * 10000 / 360);
+        int256 s = int256(colorHSL.saturation * 100);
+        int256 l = int256(colorHSL.lightness * 100);
+
+        if(s == 0){
+            r = g = b = uint256(l);
+        } else {
+            int256 q = l < 5000 ? l * (10000 + s) / 10000 : l + s - ((l*s)/10000);
+            int256 p = 2 * l - q;
+            r = hue2rgb(p, q, h + 3333);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 3333);
+            
+        }
+        return ColorRGB(255 * r / 10000, 255 * g / 10000, 255 * b / 10000);
+    }
+
+    function toColorHSL(ColorRGB memory colorRGB) internal pure returns (ColorHSL memory) {
+        int256 r = int256(colorRGB.red  * 10000 / 255);
+        int256 g = int256(colorRGB.green * 10000 /255);
+        int256 b = int256(colorRGB.blue * 10000 /255);
+
+        int256 max = int256(Math.max(uint256(r), Math.max(uint256(g), uint256(b))));
+        int256 min = int256(Math.min(uint256(r), Math.min(uint256(g), uint256(b))));
+
+        int256 h;
+        int256 s;
+        int256 l = (max + min) / 2;
+
+        if(max == min){
+            h = s = 0;
+        }else{
+            int256 d = max - min;
+            s = l > 5000 ? 10000 * d / (20000 - max - min) : 10000 * d / (max + min);
+            if (max == r) {
+                h = int256(10000) * (g - b) / d + (g < b ? int256(60000) : int256(0));
+            } else if (max == g) {
+                h = int256(10000) *(b - r) / d + int256(20000);
+            } else {
+                h = int256(10000) * (r - g) / d + int256(40000);
+            }
+            h = h/ 6;
+        }
+        return ColorHSL(uint256(36*h/1000), uint256(s/100), uint256(l/100));
+    }
+
     function toString(uint256 value) internal pure returns (string memory) {
     // Inspired by OraclizeAPI's implementation - MIT license
     // https://github.com/oraclize/ethereum-api/blob/b42146b063c7d6ee1358846c198246239e9360e8/oraclizeAPI_0.4.25.sol
@@ -1379,7 +1475,43 @@ contract Loot is ERC721Enumerable, ReentrancyGuard, Ownable {
         return string(buffer);
     }
     
-    constructor() ERC721("Loot", "LOOT") Ownable() {}
+    constructor() ERC721("Palette Loot", "PALOOT") Ownable() {
+        hScheme[0] = [int256(38), 21, -21, -38]; // "analogous"
+        sScheme[0] = [int256(5), 5, 5, 5];
+        lScheme[0] = [int256(0), -4, -4, 0];
+
+        hScheme[1] = [int256(135), 0, -82, -82]; // "triadic",
+        sScheme[1] = [int256(-21), -15, 0, -8];
+        lScheme[1] = [int256(24), 20, 16, 1];
+
+        hScheme[2] = [int256(38), 21, -21, -41]; // "complementary",
+        sScheme[2] = [int256(7), 11, 11, 7];
+        lScheme[2] = [int256(1), 3, 3, 1];
+
+        hScheme[3] = [int256(168), 168, -100, -100]; // "split_complementary",
+        sScheme[3] = [int256(-13), -7, 15, 7];
+        lScheme[3] = [int256(-15), 2, -20, 2];
+
+        hScheme[4] = [int256(38), 168, -99, -21]; // "double_split_complementary",
+        sScheme[4] = [int256(-7), -9, 15, 7];
+        lScheme[4] = [int256(2), 4, -4, -2];
+
+        hScheme[5] = [int256(0), 104, 201, -65]; // "square",
+        sScheme[5] = [int256(15), -9, 15, 7];
+        lScheme[5] = [int256(-4), 4, -4, -2];
+
+        hScheme[6] = [int256(38), 38, 184, 168]; // "compound",
+        sScheme[6] = [int256(33), -42, -11, 33];
+        lScheme[6] = [int256(7), -16, 12, 7];
+        
+        hScheme[7] = [int256(0), 0, 0, 0]; // "monochromatic"
+        sScheme[7] = [int256(0), -11, -33, -1];
+        lScheme[7] = [int256(-30), 15, -25, -12];
+
+        hScheme[8] = [int256(0), 0, 0, 0]; // "monochromatic"
+        sScheme[8] = [int256(-10), 1, -10, 1];
+        lScheme[8] = [int256(27), 12, -13, -18];
+    }
 }
 
 /// [MIT License]
