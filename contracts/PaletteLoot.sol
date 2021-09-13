@@ -1313,7 +1313,7 @@ abstract contract ERC721Enumerable is ERC721, IERC721Enumerable {
 }
 
 
-contract CoLoot is ERC721Enumerable, ReentrancyGuard, Ownable {
+contract PaLoot is ERC721Enumerable, ReentrancyGuard, Ownable {
     
     mapping (uint256 => int256[5]) hScheme;
     mapping (uint256 => int256[5]) sScheme;
